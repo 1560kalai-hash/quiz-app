@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure EduQuiz Pro</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --success: #2ecc71; --danger: #e74c3c; --gray: #7f8c8d; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .portal { display: none; }
+        .active { display: block; }
+        .nav-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+        .card { border: 1px solid #e1e4e8; padding: 20px; margin: 15px 0; border-radius: 10px; background: #fff; }
+        input, select, button { padding: 12px; margin-top: 10px; width: 100%; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { cursor: pointer; background: var(--accent); color: white; border: none; font-weight: bold; transition: 0.3s; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-red { background: var(--danger); }
+        .back-btn { background: var(--gray); width: auto; padding: 8px 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+        th, td { border: 1px solid #eee; padding: 12px; text-align: left; }
+        th { background: #f8f9fa; color: var(--primary); }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+        .badge-grade { background: #eef2ff; color: #4338ca; }
+        .pass { color: var(--success); font-weight: bold; }
+        .fail { color: var(--danger); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="mainNav" class="nav-header">
+        <h2>EduQuiz Master</h2>
+        <button class="back-btn" onclick="logout()">Logout / Home</button>
+    </div>
+
+    <div id="loginPortal" class="portal active">
+        <h3 style="text-align:center;">Select Portal to Login</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <button onclick="enterPortal('adminPortal', 'admin')">Admin</button>
+            <button onclick="enterPortal('teacherPortal', 'teacher')">Teacher</button>
+            <button onclick="enterPortal('studentPortal', 'student')">Student</button>
+        </div>
+    </div>
+
+    <div id="adminPortal" class="portal">
+        <h3>Admin Control Panel</h3>
+        <div class="card">
+            <h4>Register Teacher</h4>
+            <input type="text" id="tName" placeholder="Teacher Name">
+            <input type="password" id="tPass" placeholder="Teacher Access Password">
+            <button onclick="addTeacher()">Create Teacher</button>
+        </div>
+        <div class="card">
+            <h4>All System Results</h4>
+            <table id="adminTable">
+                <thead><tr><th>Student</th><th>Grade</th><th>Score</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="teacherPortal" class="portal">
+        <h3>Teacher Dashboard</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="card">
+                <h4>Register Student</h4>
+                <input type="text" id="sName" placeholder="Student Name">
+                <select id="sGrade">
+                    <option value="" disabled selected>Select Grade (1-12)</option>
+                </select>
+                <input type="password" id="sPass" placeholder="Set Student Password">
+                <button onclick="addStudent()">Add Student</button>
+            </div>
+            <div class="card" id="qForm">
+                <h4>Quiz Creator</h4>
+                <input type="text" id="qText" placeholder="Question Title">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
+                    <input type="text" id="o1" placeholder="Option 1">
+                    <input type="text" id="o2" placeholder="Option 2">
+                    <input type="text" id="o3" placeholder="Option 3">
+                    <input type="text" id="o4" placeholder="Option 4">
+                </div>
+                <select id="correctIdx">
+                    <option value="0">Option 1 is Correct</option>
+                    <option value="1">Option 2 is Correct</option>
+                    <option value="2">Option 3 is Correct</option>
+                    <option value="3">Option 4 is Correct</option>
+                </select>
+                <button onclick="saveQuestion()" style="background: var(--success);">Save Question</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4>Teacher's Gradebook (Student Marks)</h4>
+            <table id="teacherGradebook">
+                <thead><tr><th>Student Name</th><th>Grade Level</th><th>Mark (%)</th><th>Result</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="studentPortal" class="portal">
+        <div id="studentLoginArea">
+            <h3>Student Examination Login</h3>
+            <select id="studentSelect"></select>
+            <input type="password" id="studentPassInput" placeholder="Your Password">
+            <button onclick="studentLogin()">Login & Start Quiz</button>
+        </div>
+        <div id="quizArea" style="display:none;">
+            <div class="card">
+                <h4 id="displayQ"></h4>
+                <div id="optionsGrid"></div>
+            </div>
+        </div>
+        <div id="resultSheet" style="display:none;">
+            <h3>Your Final Score</h3>
+            <div id="resultSummary"></div>
+            <button onclick="logout()">Finish Attempt</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let db = JSON.parse(localStorage.getItem('eduQuizDB')) || {
+        teachers: [], students: [], questions: [], results: []
+    };
+
+    // Auto-populate Grades 1-12
+    const sGrade = document.getElementById('sGrade');
+    for(let i=1; i<=12; i++) {
+        let opt = document.createElement('option');
+        opt.value = i; opt.innerText = "Grade " + i;
+        sGrade.appendChild(opt);
+    }
+
+    function saveDB() { localStorage.setItem('eduQuizDB', JSON.stringify(db)); }
+    function logout() { location.reload(); }
+
+    function enterPortal(id, type) {
+        const pw = prompt(`Enter ${type.toUpperCase()} Password:`);
+        if(type === 'admin' && pw !== 'admin123') return alert("Wrong Admin Password");
+        if(type === 'teacher') {
+            const t = db.teachers.find(t => t.pass === pw);
+            if(!t) return alert("Unauthorized Teacher");
+        }
+        if(type === 'student' && id !== 'studentPortal') return;
+
+        document.querySelectorAll('.portal').forEach(p => p.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        refreshUI();
+    }
+
+    // Actions
+    function addTeacher() {
+        const name = document.getElementById('tName').value;
+        const pass = document.getElementById('tPass').value;
+        if(name && pass) {
+            db.teachers.push({name, pass}); saveDB();
+            alert("Teacher Created!"); refreshUI();
+        }
+    }
+
+    function addStudent() {
+        const name = document.getElementById('sName').value, grade = document.getElementById('sGrade').value, pass = document.getElementById('sPass').value;
+        if(name && grade && pass) {
+            db.students.push({name, grade, pass}); saveDB();
+            alert("Student Registered!"); refreshUI();
+        }
+    }
+
+    function saveQuestion() {
+        const q = {
+            text: document.getElementById('qText').value,
+            options: [document.getElementById('o1').value, document.getElementById('o2').value, document.getElementById('o3').value, document.getElementById('o4').value],
+            correct: document.getElementById('correctIdx').value
+        };
+        db.questions.push(q); saveDB();
+        document.querySelectorAll('#qForm input').forEach(i => i.value = '');
+        alert("Question Added!");
+    }
+
+    // Quiz Logic
+    let curQ = 0, score = 0, activeUser = null;
+
+    function studentLogin() {
+        const name = document.getElementById('studentSelect').value;
+        const pass = document.getElementById('studentPassInput').value;
+        const s = db.students.find(s => s.name === name && s.pass === pass);
+        if(s) {
+            activeUser = s;
+            if(db.questions.length === 0) return alert("No questions available.");
+            document.getElementById('studentLoginArea').style.display = 'none';
+            document.getElementById('quizArea').style.display = 'block';
+            runQuiz();
+        } else alert("Wrong Password");
+    }
+
+    function runQuiz() {
+        const q = db.questions[curQ];
+        document.getElementById('displayQ').innerText = `Question ${curQ+1}: ${q.text}`;
+        const grid = document.getElementById('optionsGrid');
+        grid.innerHTML = '';
+        q.options.forEach((opt, i) => {
+            const b = document.createElement('button');
+            b.innerText = opt; b.style.background = "white"; b.style.color = "#333"; b.style.border = "1px solid #ddd";
+            b.onclick = () => {
+                if(i == q.correct) score++;
+                curQ++;
+                if(curQ < db.questions.length) runQuiz(); else endQuiz();
+            };
+            grid.appendChild(b);
+        });
+    }
+
+    function endQuiz() {
+        const pct = Math.round((score / db.questions.length) * 100);
+        db.results.push({name: activeUser.name, grade: activeUser.grade, score: pct});
+        saveDB();
+        document.getElementById('quizArea').style.display = 'none';
+        document.getElementById('resultSheet').style.display = 'block';
+        document.getElementById('resultSummary').innerHTML = `<h2>${pct}%</h2><p>Excellent effort, ${activeUser.name}!</p>`;
+    }
+
+    function refreshUI() {
+        // Teacher Gradebook & Admin Dashboard Logic
+        const renderTable = (target) => {
+            const body = document.querySelector(target);
+            body.innerHTML = db.results.map(r => `
+                <tr>
+                    <td>${r.name}</td>
+                    <td><span class="badge badge-grade">Grade ${r.grade}</span></td>
+                    <td>${r.score}%</td>
+                    <td class="${r.score >= 50 ? 'pass' : 'fail'}">${r.score >= 50 ? 'PASS' : 'FAIL'}</td>
+                </tr>
+            `).join('');
+        };
+        
+        renderTable('#adminTable tbody');
+        renderTable('#teacherGradebook tbody');
+
+        document.getElementById('studentSelect').innerHTML = db.students.map(s => 
+            `<option value="${s.name}">${s.name} (Grade ${s.grade})</option>`).join('');
+    }
+
+    refreshUI();
+</script>
+</body>
+</html>
